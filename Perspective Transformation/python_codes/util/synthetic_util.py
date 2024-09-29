@@ -1,8 +1,8 @@
 import numpy as np
 import cv2 as cv
 
-from util.rotation_util import RotationUtil
-from util.projective_camera import ProjectiveCamera
+from perspective_transform.util.rotation_util import RotationUtil
+from perspective_transform.util.projective_camera import ProjectiveCamera
 
 class SyntheticUtil:
     @staticmethod
@@ -34,8 +34,8 @@ class SyntheticUtil:
             p1, p2 = model_points[idx1], model_points[idx2]
             q1 = camera.project_3d(p1[0], p1[1], 0.0, 1.0)
             q2 = camera.project_3d(p2[0], p2[1], 0.0, 1.0)
-            q1 = np.rint(q1).astype(np.int)
-            q2 = np.rint(q2).astype(np.int)
+            q1 = np.rint(q1).astype(np.int64)
+            q2 = np.rint(q2).astype(np.int64)
             cv.line(im, tuple(q1), tuple(q2), color, thickness=line_width)
         return im
 
@@ -195,152 +195,3 @@ class SyntheticUtil:
             positive_images[i, 0, :,:] = pos_im
 
         return (pivot_images, positive_images)
-
-def ut_camera_to_edge_image():
-    import scipy.io as sio
-    # this camera is from UoT world cup dataset, train, index 16
-    camera_data = np.asarray([640,	360, 3081.976880,
-                              1.746393,	 -0.321347,	 0.266827,
-                              52.816224,	 -54.753716, 19.960425])
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup2014.mat')
-    print(data.keys())
-    model_points = data['points']
-    model_line_index = data['line_segment_index']
-    im = SyntheticUtil.camera_to_edge_image(camera_data, model_points, model_line_index, 720, 1280, line_width=4)
-    im = cv.cvtColor(im, cv.COLOR_RGB2GRAY)
-    print(im.shape)
-    cv.imwrite('debug_train_16.jpg', im)
-
-def ut_generate_ptz_cameras():
-    """
-    Generate PTZ camera demo:  Section 3.1
-    """
-    import scipy.io as sio
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup_dataset_camera_parameter.mat')
-    print(data.keys())
-
-    cc_mean = data['cc_mean']
-    cc_std = data['cc_std']
-    cc_min = data['cc_min']
-    cc_max = data['cc_max']
-    cc_statistics = [cc_mean, cc_std, cc_min, cc_max]
-
-    fl_mean = data['fl_mean']
-    fl_std = data['fl_std']
-    fl_min = data['fl_min']
-    fl_max = data['fl_max']
-    fl_statistics = [fl_mean, fl_std, fl_min, fl_max]
-    roll_statistics = [0, 0.2, -1.0, 1.0]
-
-    pan_range = [-35.0, 35.0]
-    tilt_range = [-15.0, -5.0]
-    num_camera = 10
-
-    cameras = SyntheticUtil.generate_ptz_cameras(cc_statistics,
-                                                 fl_statistics,
-                                                 roll_statistics,
-                                                 pan_range, tilt_range,
-                                                 1280/2.0, 720/2.0,
-                                                 num_camera)
-
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup2014.mat')
-    model_points = data['points']
-    model_line_index = data['line_segment_index']
-    for i in range(num_camera):
-        cam = cameras[i]
-        print(cam[0:3])
-        im = SyntheticUtil.camera_to_edge_image(cam, model_points, model_line_index, 720, 1280, line_width=4)
-        print(im.shape)
-        cv.imshow('image from camera', im)
-        cv.waitKey(1000)
-    cv.destroyAllWindows()
-
-def ut_sample_positive_pair():
-    """
-    def sample_positive_pair(pp, cc, base_roll, pan, tilt, fl,
-                             pan_std, tilt_std, fl_std):
-    """
-    import scipy.io as sio
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup_dataset_camera_parameter.mat')
-    cc_mean = data['cc_mean']
-
-    pp = np.asarray([1280.0/2, 720.0/2])
-    cc = cc_mean
-    base_roll = np.random.uniform(-0.5, 0.5)
-    pan = 10.0
-    tilt = -10.0
-    fl = 3800
-    pan_std = 1.5
-    tilt_std = 0.75
-    fl_std = 30
-
-    camera = np.zeros(9)
-    camera[0] = 640.000000
-    camera[1] = 360.000000
-    camera[2] = fl
-
-    base_rotation = RotationUtil.rotate_y_axis(0) @ \
-                    RotationUtil.rotate_z_axis(base_roll) @ \
-                    RotationUtil.rotate_x_axis(-90)
-    pan_tilt_rotation = RotationUtil.pan_y_tilt_x(pan, tilt)
-    rotation = pan_tilt_rotation @ base_rotation
-    rot_vec, _ = cv.Rodrigues(rotation)
-    camera[3: 6] = rot_vec.squeeze()
-    camera[6: 9] = cc
-
-
-    pivot = camera
-
-    positive = SyntheticUtil.sample_positive_pair(pp, cc, base_roll, pan, tilt, fl,
-                                                  pan_std, tilt_std, fl_std)
-
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup2014.mat')
-    print(data.keys())
-    model_points = data['points']
-    model_line_index = data['line_segment_index']
-
-    im1 = SyntheticUtil.camera_to_edge_image(pivot, model_points, model_line_index, 720, 1280)
-    im2 = SyntheticUtil.camera_to_edge_image(positive, model_points, model_line_index, 720, 1280)
-    cv.imshow("pivot", im1)
-    cv.imshow("positive", im2)
-    cv.waitKey(5000)
-
-def ut_generate_database_images():
-    import scipy.io as sio
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup_sampled_cameras.mat')
-    pivot_cameras = data['pivot_cameras']
-    positive_cameras = data['positive_cameras']
-
-    n = 10000
-    pivot_cameras = pivot_cameras[0:n, :]
-    positive_cameras = positive_cameras[0:n,:]
-
-    data = sio.loadmat(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/worldcup2014.mat')
-    print(data.keys())
-    model_points = data['points']
-    model_line_index = data['line_segment_index']
-
-    pivot_images, positive_images = SyntheticUtil.generate_database_images(pivot_cameras, positive_cameras,
-                                                             model_points, model_line_index)
-
-    #print('{} {}'.format(pivot_images.shape, positive_images.shape))
-    sio.savemat('train_data_10k.mat', {'pivot_images':pivot_images,
-                                      'positive_images':positive_images,
-                                       'cameras':pivot_cameras})
-
-def ut_distance_transform():
-    im = cv.imread(r'C:\Users\mostafa\Desktop\test\SCCvSD-master/data/16_edge_image.jpg')
-    dist_im = SyntheticUtil.distance_transform(im)
-
-    dist_im[dist_im > 255] = 255
-    dist_im = dist_im.astype(np.uint8)
-    cv.imshow('distance image', dist_im)
-    cv.waitKey()
-
-
-if __name__ == '__main__':
-    #ut_camera_to_edge_image()
-    #ut_generate_ptz_cameras()
-    #ut_sample_positive_pair()
-    ut_generate_database_images()
-    #ut_distance_transform()
